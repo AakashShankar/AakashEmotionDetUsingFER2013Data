@@ -22,12 +22,25 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Load the model
 emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Fearful", 3: "Happy", 4: "Neutral", 5: "Sad", 6: "Surprised"}
 
-with open("D:\\tenserFlowProject\\PublishMEemotionDet\\model\\emotion_model.json", 'r') as json_file:
+# with open("D:\\tenserFlowProject\\PublishMEemotionDet\\model\\emotion_model.json", 'r') as json_file:
+#     loaded_model_json = json_file.read()
+#
+# emotion_model = model_from_json(loaded_model_json)
+# emotion_model.load_weights("D:\\tenserFlowProject\\PublishMEemotionDet\\model\\emotion_model.h5")
+# print("Model loaded successfully")
+
+# Use relative path instead of absolute path for deployment
+with open("model/emotion_model.json", 'r') as json_file:
     loaded_model_json = json_file.read()
 
+# Load the model from the JSON file
+from tensorflow.keras.models import model_from_json
 emotion_model = model_from_json(loaded_model_json)
-emotion_model.load_weights("D:\\tenserFlowProject\\PublishMEemotionDet\\model\\emotion_model.h5")
+
+# Load the weights from the H5 file (also use relative path)
+emotion_model.load_weights("model/emotion_model.h5")
 print("Model loaded successfully")
+
 
 # Face detection model
 face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
