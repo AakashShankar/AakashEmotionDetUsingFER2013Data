@@ -54,8 +54,7 @@
 </body>
 </html>
  -->
-
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -70,23 +69,66 @@
             text-align: center;
             margin: 0;
         }
+
         h1, h2 {
             margin: 20px 0;
             text-shadow: 2px 2px 4px #000;
         }
+
         .container {
             background: rgba(0, 0, 0, 0.6);
             padding: 20px;
             border-radius: 10px;
             display: inline-block;
-            margin-top: 50px;
+            margin-top: 20px;
         }
+
         video, canvas {
             margin-top: 20px;
             max-width: 80%;
             border: 3px solid #fff;
             border-radius: 10px;
         }
+
+        .row {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+
+        .half {
+            width: 48%;
+        }
+
+        button, input[type="file"] {
+            margin: 10px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover, input[type="file"]:hover {
+            background-color: #555;
+        }
+
+        .loader {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #555;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         footer {
             position: fixed;
             bottom: 10px;
@@ -98,17 +140,29 @@
 </head>
 <body>
     <h1>Emotion Detection</h1>
-    <h2>CS737-Deep Learning Course Project by Aakash</h2>
+    <h2>NOTE: Processing may take a few minutes. Thank you for your patience!</h2>
+
     <div class="container">
-        <p>Select an option:</p>
+        <p>Select an option to get started:</p>
         <button id="liveVideoBtn">Use Webcam</button>
         <input type="file" id="uploadFile" accept="image/*,video/*">
-        <div id="videoContainer">
-            <video id="webcam" autoplay muted playsinline style="display: none;"></video>
-            <canvas id="canvas" style="display: none;"></canvas>
+
+        <div class="loader" id="loader"></div>
+
+        <div id="videoContainer" class="row">
+            <div class="half">
+                <h3>Live Video</h3>
+                <video id="webcam" autoplay muted playsinline></video>
+            </div>
+            <div class="half">
+                <h3>Processed Video</h3>
+                <canvas id="canvas"></canvas>
+            </div>
         </div>
+
         <div id="output"></div>
     </div>
+
     <footer>Developed by Aakash for CS737-Deep Learning course project.</footer>
 
     <script>
@@ -118,18 +172,18 @@
         const liveVideoBtn = document.getElementById("liveVideoBtn");
         const uploadFile = document.getElementById("uploadFile");
         const output = document.getElementById("output");
+        const loader = document.getElementById("loader");
         let frameInterval = 2000; // Process frame every 2 seconds
 
         liveVideoBtn.addEventListener("click", async () => {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 video.srcObject = stream;
-                video.style.display = "block";
-                canvas.style.display = "block";
 
                 setInterval(async () => {
                     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                     const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg"));
+                    loader.style.display = 'block';
 
                     const response = await fetch("/process_frame", {
                         method: "POST",
@@ -142,6 +196,7 @@
                     img.src = URL.createObjectURL(resultBlob);
                     img.onload = () => {
                         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        loader.style.display = 'none';
                         URL.revokeObjectURL(img.src);
                     };
                 }, frameInterval);
@@ -154,6 +209,7 @@
             const file = event.target.files[0];
             const formData = new FormData();
             formData.append("file", file);
+            loader.style.display = 'block';
 
             const response = await fetch("/upload", {
                 method: "POST",
@@ -161,9 +217,17 @@
             });
 
             const result = await response.json();
-            output.innerHTML = `<p>${result.message}</p>`;
+            output.innerHTML = `
+                <h3>Processed File:</h3>
+                <img src="${result.file}" alt="Processed Image" style="width: 100%; border: 2px solid #fff;">
+                <a href="${result.file}" download="processed_result.jpg">Download Processed File</a>
+            `;
+
+            loader.style.display = 'none';
         });
     </script>
 </body>
 </html>
-<!--the end-->
+
+
+
