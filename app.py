@@ -130,16 +130,19 @@ from flask import Flask, render_template, request, jsonify, Response
 import cv2
 import numpy as np
 import os
+import tensorflow as tf
 from keras.models import model_from_json
 
 app = Flask(__name__, template_folder='templates')
 
-# Load the emotion detection model
+# Load the emotion detection model (lightweight conversion)
 emotion_dict = {0: "Angry", 1: "Disgusted", 2: "Fearful", 3: "Happy", 4: "Neutral", 5: "Sad", 6: "Surprised"}
-with open("model/emotion_model.json", 'r') as json_file:
-    loaded_model_json = json_file.read()
-emotion_model = model_from_json(loaded_model_json)
-emotion_model.load_weights("model/emotion_model.h5")
+
+# Convert to TensorFlow Lite model for smaller size and faster inference
+interpreter = tf.lite.Interpreter(model_path="model/emotion_model.tflite")
+interpreter.allocate_tensors()
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
 
 # Load face detection
 face_detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
@@ -162,8 +165,11 @@ def process_frame():
     for (x, y, w, h) in faces:
         face = gray_frame[y:y + h, x:x + w]
         resized_face = cv2.resize(face, (48, 48)) / 255.0
-        reshaped_face = np.expand_dims(np.expand_dims(resized_face, axis=-1), axis=0)
-        prediction = emotion_model.predict(reshaped_face)
+        reshaped_face = np.expand_dims(np.expand_dims(resized_face, axis=-1), axis=0).astype(np.float32)
+
+        interpreter.set_tensor(input_details[0]['index'], reshaped_face)
+        interpreter.invoke()
+        prediction = interpreter.get_tensor(output_details[0]['index'])
         emotion = emotion_dict[np.argmax(prediction)]
 
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
@@ -197,11 +203,13 @@ def process_image(filepath):
     for (x, y, w, h) in faces:
         face = gray_frame[y:y + h, x:x + w]
         resized_face = cv2.resize(face, (48, 48)) / 255.0
-        reshaped_face = np.expand_dims(np.expand_dims(resized_face, axis=-1), axis=0)
-        prediction = emotion_model.predict(reshaped_face)
+        reshaped_face = np.expand_dims(np.expand_dims(resized_face, axis=-1), axis=0).astype(np.float32)
+
+        interpreter.set_tensor(input_details[0]['index'], reshaped_face)
+        interpreter.invoke()
+        prediction = interpreter.get_tensor(output_details[0]['index'])
         emotion = emotion_dict[np.argmax(prediction)]
 
-        # Draw bounding box and emotion text
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
         cv2.putText(frame, emotion, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
 
@@ -212,7 +220,6 @@ def process_image(filepath):
     return output_path
 
 
-
 def process_video(filepath):
     """Process uploaded video and apply emotion detection."""
     cap = cv2.VideoCapture(filepath)
@@ -220,7 +227,6 @@ def process_video(filepath):
     if not os.path.exists("processed"):
         os.makedirs("processed")
 
-    # Get video properties
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -228,25 +234,27 @@ def process_video(filepath):
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
     frame_count = 0
-    frame_interval = fps  # Process every 1 second (based on FPS)
+    frame_interval = max(1, fps // 2)  # Process every 0.5 second
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
-        if frame_count % frame_interval == 0:  # Process every nth frame
+        if frame_count % frame_interval == 0:
             gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             faces = face_detector.detectMultiScale(gray_frame, scaleFactor=1.3, minNeighbors=5)
 
             for (x, y, w, h) in faces:
                 face = gray_frame[y:y + h, x:x + w]
                 resized_face = cv2.resize(face, (48, 48)) / 255.0
-                reshaped_face = np.expand_dims(np.expand_dims(resized_face, axis=-1), axis=0)
-                prediction = emotion_model.predict(reshaped_face)
+                reshaped_face = np.expand_dims(np.expand_dims(resized_face, axis=-1), axis=0).astype(np.float32)
+
+                interpreter.set_tensor(input_details[0]['index'], reshaped_face)
+                interpreter.invoke()
+                prediction = interpreter.get_tensor(output_details[0]['index'])
                 emotion = emotion_dict[np.argmax(prediction)]
 
-                # Draw bounding box and emotion text
                 cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
                 cv2.putText(frame, emotion, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
 
@@ -256,7 +264,6 @@ def process_video(filepath):
     cap.release()
     out.release()
     return output_path
-
 
 
 if __name__ == "__main__":
